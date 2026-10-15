@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Шаг 1: Расширяем место на сервере, так как сборка графики требует много пространства
+    # Шаг 1: Расширяем место на сервере для тяжелой сборки
     - name: Maximize build space
       uses: easimon/maximize-build-space@v10
       with:
@@ -18,14 +18,23 @@ jobs:
         remove-android: 'true'
         remove-haskell: 'true'
 
-    # Шаг 2: Ставим зависимости и сам pmbootstrap на сервер Ubuntu
-    - name: Install pmbootstrap & dependencies
+    # Шаг 2: Ставим базовые системные зависимости и разворачиваем pmbootstrap из Git
+    - name: Install pmbootstrap from Git source
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip openssl git openssh-client
-        pip3 install pmbootstrap
+        sudo apt-get install -y python3-pip openssl git openssh-client python3-tomli
+        
+        # Клонируем официальный pmbootstrap и создаем ссылку в PATH
+        git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git /home/runner/pmbootstrap-src
+        mkdir -p ~/.local/bin
+        ln -s /home/runner/pmbootstrap-src/pmbootstrap.py ~/.local/bin/pmbootstrap
+        
+        # Проверяем, что утилита доступна глобально
+        echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+        export PATH="$HOME/.local/bin:$PATH"
+        pmbootstrap --version
 
-    # Шаг 3: Конфигурируем сборщик под OnePlus 15 с графикой Phosh
+    # Шаг 3: Конфигурируем сборщик под OnePlus 15 (infiniti)
     - name: Initialize pmbootstrap
       run: |
         pmbootstrap init --work=/home/runner/pmbootstrap \
@@ -34,22 +43,20 @@ jobs:
           --ui=phosh \
           --mirror-alpine=http://alpinelinux.org
 
-    # Шаг 4: Собираем систему, упакованную целиком в RAM-диск (initramfs)
+    # Шаг 4: Собираем графическую систему в RAM-диск
     - name: Build RAM Image (Split/Initramfs)
       run: |
-        # Флаг --no-fhs критичен для корректной сборки в виртуальной среде GitHub
         pmbootstrap install --split --no-fhs
 
-    # Шаг 5: Ищем скомпилированный образ и переносим его в отдельную папку
+    # Шаг 5: Экспортируем готовый скомпилированный образ
     - name: Find and Export Image
       run: |
         mkdir output
-        # Ищем готовый initramfs образ внутри рабочих папок pmbootstrap
         find /home/runner/pmbootstrap/chroot_native/home/pmos/rootfs/ -name "*initramfs*" -exec cp {} ./output/ \;
         echo "=== Файлы, готовые к отправке ==="
         ls -la ./output
 
-    # Шаг 6: Исправлено! Выгружаем готовый .img файл через официальный экшен
+    # Шаг 6: Выгружаем артефакт на GitHub
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
