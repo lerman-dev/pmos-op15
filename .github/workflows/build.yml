@@ -49,9 +49,9 @@ jobs:
         echo "=== Файлы, готовые к отправке ==="
         ls -la ./output
 
-    # Шаг 6: Выгружаем готовый .img файл в артефакты GitHub, чтобы вы могли его скачать
+    # Шаг 6: Исправлено! Выгружаем готовый .img файл через официальный экшен
     - name: Upload Artifacts
-      uses: actions/artifacts@v4
+      uses: actions/upload-artifact@v4
       with:
         name: pmos-phosh-oneplus15
         path: ./output/*
